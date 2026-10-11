@@ -1,0 +1,31 @@
+[
+  {
+    "id": "elena-verna-plg-b2b",
+    "title": "Elena Verna on B2B Product-Led Growth, Product-Led Sales, and Growth Loops",
+    "guest": "Elena Verna",
+    "date": "2023-08-22",
+    "source_url": "https://www.lennyspodcast.com/elena-verna-on-b2b-product-led-growth/",
+    "content": [
+      {
+        "timestamp": "05:10",
+        "topic": "Product-Led Growth Foundation",
+        "text": "Product-Led Growth (PLG) is not just a self-serve checkout page; it's an end-to-end go-to-market strategy where the product itself drives acquisition, activation, retention, and expansion. In B2B, PLG works by winning individual end-users first before selling to enterprise buyers. If end-users love the product and use it daily, top-down sales becomes 10x easier because usage data proves ROI."
+      },
+      {
+        "timestamp": "14:20",
+        "topic": "Product-Led Sales (PLS)",
+        "text": "PLS bridges PLG and enterprise sales. You use product usage signals—like active user count, feature adoption rate, and team invites—as Product Qualified Leads (PQLs). Instead of cold calling, sales reps reach out to accounts that already have active organic usage and help them upgrade to team/enterprise tiers."
+      },
+      {
+        "timestamp": "28:50",
+        "topic": "Growth Loops vs Funnels",
+        "text": "Traditional funnels treat acquisition as a linear input-output process where users leak out at every stage. Growth loops are closed compound loops: output from one user action cycles back to generate input for new user acquisition or re-engagement. Examples include viral loops (inviting teammates), content loops (user-generated content SEO), and financial loops (revenue reinvested in performance marketing)."
+      },
+      {
+        "timestamp": "41:15",
+        "topic": "Activation Metric Definition",
+        "text": "An activation metric must measure the exact moment a user experiences the core value proposition ('Aha! moment'). For Miro, it's creating and sharing a board within 48 hours. For Dropbox, it's putting one file in one folder on one device."
+      }
+    ]
+  }
+]

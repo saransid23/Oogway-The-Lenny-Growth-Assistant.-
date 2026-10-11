@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lenny's Growth Assistant — Product & Transcript Intelligence</title>
+  <meta name="description" content="Human-crafted AI assistant grounded in Lenny's Podcast transcripts with live artifact rendering and Ship 30 essay generation.">
+  
+  <!-- Premium Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <!-- Lucide & FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Main Stylesheet -->
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="zinc-theme">
+  <div id="app" class="app-layout">
+    
+    <!-- LEFT SIDEBAR -->
+    <aside id="sidebar" class="sidebar">
+      <!-- BRAND HEADER -->
+      <div class="brand-bar">
+        <div class="brand-mark">
+          <span class="mark-letter">L</span>
+        </div>
+        <div class="brand-meta">
+          <span class="brand-name">Lenny's Assistant</span>
+          <span class="brand-tag">Growth Intelligence</span>
+        </div>
+      </div>
+
+      <!-- NEW CHAT ACTION -->
+      <button id="btn-new-chat" class="btn-new-chat">
+        <i class="fa-solid fa-plus"></i>
+        <span>New Conversation</span>
+        <kbd class="kbd-shortcut">Ctrl+N</kbd>
+      </button>
+
+      <!-- MODEL EXECUTION ENGINE CONTROL -->
+      <div class="sidebar-block">
+        <div class="block-header">
+          <span>Execution Engine</span>
+          <span id="ollama-status-badge" class="status-badge online">Ollama</span>
+        </div>
+        <div class="segmented-control">
+          <button id="btn-provider-local" class="segment-btn active" data-provider="local">
+            <i class="fa-solid fa-hard-drive"></i> Local
+          </button>
+          <button id="btn-provider-cloud" class="segment-btn" data-provider="cloud">
+            <i class="fa-solid fa-cloud"></i> Cloud
+          </button>
+        </div>
+        <div class="engine-meta-row">
+          <span id="active-model-display">Model: mistral (7B)</span>
+        </div>
+      </div>
+
+      <!-- CONTENT SKILLS -->
+      <div class="sidebar-block">
+        <div class="block-header">
+          <span>AI Growth Skills</span>
+        </div>
+        <button id="btn-skill-ship30" class="skill-nav-btn">
+          <div class="skill-nav-icon"><i class="fa-solid fa-feather"></i></div>
+          <div class="skill-nav-text">
+            <span class="skill-nav-title">Ship 30 for 30 Essay</span>
+            <span class="skill-nav-sub">Grounded 1,250-word masterclass</span>
+          </div>
+        </button>
+      </div>
+
+      <!-- RECENT CONVERSATIONS -->
+      <div class="sidebar-block history-block">
+        <div class="block-header">
+          <span>Recent Chats</span>
+        </div>
+        <div id="sessions-list" class="history-list">
+          <!-- Session items inserted dynamically -->
+        </div>
+      </div>
+
+      <!-- FOOTER STATUS -->
+      <div class="sidebar-footer">
+        <div class="rag-status-chip">
+          <span class="dot-live"></span>
+          <span id="kb-transcript-count">RAG: 15 Transcript Chunks</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN CHAT CONTAINER -->
+    <main id="chat-container" class="chat-workspace">
+      
+      <!-- TOP HEADER -->
+      <header class="top-header">
+        <div class="header-left">
+          <button id="btn-toggle-sidebar" class="btn-icon mobile-only"><i class="fa-solid fa-bars"></i></button>
+          <div class="session-info">
+            <h1 id="chat-title">New Growth Conversation</h1>
+            <div class="header-tags">
+              <span class="tag-pill"><i class="fa-solid fa-database"></i> Lenny's Transcripts</span>
+              <span class="tag-pill muted"><i class="fa-solid fa-shield-check"></i> Grounded RAG</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="header-right">
+          <button id="btn-toggle-artifact-pane" class="btn-artifact-toggle" title="Toggle Artifact Viewer">
+            <i class="fa-solid fa-sidebar"></i>
+            <span>Artifact Viewer</span>
+            <span id="artifact-count-badge" class="count-badge hidden">1</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- SCROLLABLE MESSAGES CONTAINER -->
+      <div id="messages-container" class="messages-flow">
+        
+        <!-- HUMAN-DESIGNED WELCOME HERO -->
+        <div id="welcome-hero" class="welcome-container">
+          <div class="hero-header">
+            <div class="hero-avatar">LG</div>
+            <h2>What would you like to ask or build today?</h2>
+            <p>Ask <strong>any question</strong>—from general product strategy, coding, and business to deep framework questions grounded in Lenny's Podcast transcripts with explicit citations.</p>
+          </div>
+
+          <div class="prompt-chips-grid">
+            <button class="prompt-card" data-prompt="Explain Shreyas Doshi's LNO framework and how to apply it to PM task management.">
+              <div class="card-icon"><i class="fa-solid fa-layer-group"></i></div>
+              <div class="card-content">
+                <strong>Shreyas Doshi's LNO Framework</strong>
+                <span>Grounded in Lenny's transcript corpus</span>
+              </div>
+            </button>
+
+            <button class="prompt-card" data-prompt="How does Elena Verna define Product-Led Growth (PLG) vs Product-Led Sales (PLS)?">
+              <div class="card-icon"><i class="fa-solid fa-chart-line"></i></div>
+              <div class="card-content">
+                <strong>Elena Verna on B2B PLG & PLS</strong>
+                <span>User activation loops and Product Qualified Leads</span>
+              </div>
+            </button>
+
+            <button class="prompt-card" data-prompt="Write a Python script for parsing and cleaning raw transcript text files.">
+              <div class="card-icon"><i class="fa-solid fa-code"></i></div>
+              <div class="card-content">
+                <strong>General Coding & Python Engineering</strong>
+                <span>General AI knowledge & code generation</span>
+              </div>
+            </button>
+
+            <button class="prompt-card" data-prompt="Generate an HTML dashboard mockup artifact for tracking activation metrics and PQLs.">
+              <div class="card-icon"><i class="fa-solid fa-cubes"></i></div>
+              <div class="card-content">
+                <strong>HTML Dashboard Artifact</strong>
+                <span>Interactive live render snippet for PLG metrics</span>
+              </div>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- COMPOSER BAR -->
+      <div class="composer-area">
+        <div class="composer-wrapper">
+          <form id="chat-form" class="composer-form">
+            <textarea 
+              id="chat-input" 
+              placeholder="Ask a product management or growth question..." 
+              rows="1"
+              required
+            ></textarea>
+            <div class="composer-actions">
+              <button type="button" id="btn-quick-skill" class="btn-composer-skill" title="Generate Ship 30 Essay">
+                <i class="fa-solid fa-feather"></i> Ship 30 Skill
+              </button>
+              <button type="submit" id="btn-send" class="btn-send-msg">
+                <i class="fa-solid fa-arrow-up"></i>
+              </button>
+            </div>
+          </form>
+          <div class="composer-footnote">
+            <span>Grounded in Lenny's Podcast Transcripts</span> • <span>Artifact Sandboxing Active</span>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- RIGHT SPLIT-PANE: CLAUDE-STYLE ARTIFACT VIEWER -->
+    <section id="artifact-pane" class="artifact-pane collapsed">
+      <div class="artifact-topbar">
+        <div class="artifact-meta">
+          <i class="fa-solid fa-file-code artifact-icon"></i>
+          <div>
+            <span id="artifact-title" class="artifact-title-text">Artifact Viewer</span>
+            <span id="artifact-sub-tag" class="artifact-sub-tag">HTML Render</span>
+          </div>
+        </div>
+        
+        <div class="artifact-actions">
+          <div class="tab-switcher">
+            <button id="tab-render" class="tab-item active"><i class="fa-solid fa-eye"></i> Preview</button>
+            <button id="tab-code" class="tab-item"><i class="fa-solid fa-code"></i> Code</button>
+          </div>
+          <button id="btn-copy-artifact" class="btn-icon-subtle" title="Copy Code"><i class="fa-regular fa-copy"></i></button>
+          <button id="btn-close-artifact" class="btn-icon-subtle" title="Close Panel"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+      </div>
+
+      <div class="artifact-content-area">
+        <!-- RENDER TAB -->
+        <div id="artifact-render-view" class="artifact-view-pane active">
+          <iframe id="artifact-iframe" class="artifact-iframe" sandbox="allow-scripts" title="Artifact Preview"></iframe>
+          <div id="artifact-markdown-view" class="markdown-preview-box hidden"></div>
+        </div>
+
+        <!-- CODE TAB -->
+        <div id="artifact-code-view" class="artifact-view-pane hidden">
+          <pre><code id="artifact-code-block" class="language-html"></code></pre>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Marked JS for Client Markdown -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- Application Script -->
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

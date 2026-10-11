@@ -1,0 +1,31 @@
+[
+  {
+    "id": "shreyas-doshi-lno-framework",
+    "title": "Shreyas Doshi on the LNO Framework, Product Intuition, and Managing Career Growth",
+    "guest": "Shreyas Doshi",
+    "date": "2023-04-18",
+    "source_url": "https://www.lennyspodcast.com/shreyas-doshi-on-good-product-manager-bad-product-manager-lno-framework/",
+    "content": [
+      {
+        "timestamp": "04:15",
+        "topic": "The LNO Framework",
+        "text": "The LNO Framework stands for Leverage, Neutral, and Overhead tasks. Most PMs make the mistake of treating all tasks equally. Leverage tasks are high-leverage activities where performing at a 10x level yields 100x outcomes—like defining product strategy, customer problem framing, or core architecture decisions. Neutral tasks are baseline work like status updates or basic ticket hygiene where acceptable quality is enough. Overhead tasks are administrative chores where you want to spend minimum time and just complete them cleanly without over-optimizing. When PMs over-index on overhead, they burn out without driving impact."
+      },
+      {
+        "timestamp": "12:30",
+        "topic": "Product Intuition vs Data Driven",
+        "text": "Product intuition is not magic or innate talent; it is condensed past experience and continuous customer empathy. Data tells you what is happening right now in your product, but customer empathy tells you why it is happening and what customers will need tomorrow. High performers combine quantitative analytics with qualitative user interviews, synthesizing both into strong conviction."
+      },
+      {
+        "timestamp": "21:45",
+        "topic": "Pre-Mortem Analysis",
+        "text": "Before launching a major feature or strategic initiative, conduct a pre-mortem. Ask the team: Imagine it is one year from today and this product launch has completely failed. What went wrong? People are much more honest when framing failure in the past tense, which uncovers hidden risks, broken dependencies, and unspoken misalignment early."
+      },
+      {
+        "timestamp": "34:10",
+        "topic": "Good PM vs Bad PM Behaviors",
+        "text": "A good PM focuses on outcomes over output. A bad PM measures success by how many tickets were closed or features shipped. A good PM takes accountability for team clarity, alignment, and customer value created."
+      }
+    ]
+  }
+]

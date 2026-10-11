@@ -1,0 +1,45 @@
+[
+  {
+    "id": "brian-chesky-airbnb",
+    "title": "Brian Chesky on Founder-Led Product Management and Design Quality",
+    "guest": "Brian Chesky",
+    "date": "2023-11-14",
+    "source_url": "https://www.lennyspodcast.com/brian-chesky-airbnb-founder-led-product/",
+    "content": [
+      {
+        "timestamp": "06:15",
+        "topic": "Founder-Led Product Leadership",
+        "text": "Moving away from traditional hands-off delegation back to founder-led detail orientation transformed Airbnb. When leaders get into the details of the product experience, marketing message, and brand narrative, products regain craft and cohesion. Product management should merge product design, strategy, and product marketing into a unified discipline."
+      },
+      {
+        "timestamp": "18:40",
+        "topic": "The 11-Star Experience Exercise",
+        "text": "To invent truly remarkable product experiences, do the 11-star experience exercise. Ask what a 5-star experience is (check in, clean room, easy key). What's a 6-star experience? A bottle of wine waiting. 7-star? The host knows your favorite food. 8-star? A limo picks you up. 10-star? Elon Musk takes you to space. By pushing past realistic limits to 10 or 11 stars, you find sweet spots of 6 and 7-star experiences that are affordable yet mind-blowing."
+      },
+      {
+        "timestamp": "33:10",
+        "topic": "Simplifying Product Strategy",
+        "text": "Complexity is the enemy of quality. If you have 50 priorities, you have zero priorities. Airbnb cut down projects to focus relentlessly on core host and guest experiences, elevating design standards and eliminating bloat."
+      }
+    ]
+  },
+  {
+    "id": "gibson-biddle-dhm",
+    "title": "Gibson Biddle on the DHM Model and Product Strategy at Netflix",
+    "guest": "Gibson Biddle",
+    "date": "2022-09-06",
+    "source_url": "https://www.lennyspodcast.com/gibson-biddle-netflix-product-strategy/",
+    "content": [
+      {
+        "timestamp": "04:50",
+        "topic": "The DHM Model for Strategy",
+        "text": "Product strategy answers one main question: How will your product Delight customers, in Hard-to-copy ways, while Margin-enhancing? Delight means building features customers love. Hard-to-copy means establishing moat drivers like network effects, unique technology, brand trust, or scale economies. Margin-enhancing means pricing, monetization, and business model sustainability."
+      },
+      {
+        "timestamp": "19:25",
+        "topic": "A/B Testing Discipline",
+        "text": "Never rely solely on opinion or executive authority when testing strategic hypotheses. At Netflix, every major product shift (such as moving from DVD queue to instant streaming or dynamic thumbnail previews) was validated via rigorous A/B testing against retention and lifetime value."
+      }
+    ]
+  }
+]

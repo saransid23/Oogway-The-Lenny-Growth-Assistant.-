@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: lenny_growth_assistant
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_ENV=production
+      - PORT=8000
+      - HOST=0.0.0.0
+      - DEFAULT_LLM_PROVIDER=local
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - DATABASE_URL=sqlite:///./lenny_assistant.db
+    volumes:
+      - ./data:/app/data
+      - ./lenny_assistant.db:/app/lenny_assistant.db
+    restart: unless-stopped

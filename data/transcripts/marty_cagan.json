@@ -1,0 +1,26 @@
+[
+  {
+    "id": "marty-cagan-empowered-teams",
+    "title": "Marty Cagan on Empowered Product Teams vs Feature Factories",
+    "guest": "Marty Cagan",
+    "date": "2023-01-10",
+    "source_url": "https://www.lennyspodcast.com/marty-cagan-empowered-product-teams/",
+    "content": [
+      {
+        "timestamp": "03:40",
+        "topic": "Feature Factories vs Empowered Teams",
+        "text": "In a feature factory, executives give product teams roadmap feature lists to build. The teams act as mercenaries who build output without ownership of business outcomes. In empowered product teams, teams are given problems to solve and metrics to achieve. They are given full autonomy and cross-functional ownership (PM, Design, Tech Lead) to discover the right solutions."
+      },
+      {
+        "timestamp": "16:05",
+        "topic": "Product Discovery and Four Risks",
+        "text": "Great product discovery systematically mitigates four key product risks before writing production code: 1. Value risk (will customers buy or use it?), 2. Usability risk (can users figure out how to use it?), 3. Feasibility risk (can our engineers build it with available time and tech?), and 4. Viability risk (does this work for our business model, legal, and compliance?)."
+      },
+      {
+        "timestamp": "29:30",
+        "topic": "The Role of Product Manager",
+        "text": "The Product Manager is explicitly responsible for Value Risk and Viability Risk. PMs are not project managers or backlog groomers; they must become experts on the domain, business constraints, customers, and competitive environment."
+      }
+    ]
+  }
+]
