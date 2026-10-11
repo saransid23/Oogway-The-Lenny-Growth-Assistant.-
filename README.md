@@ -100,12 +100,27 @@ c:\oogway project\
 
 ---
 
-### Option B: One-Command Docker Startup (If Docker Desktop is installed)
+### Option B: One-Command Docker Multi-Container Startup (FastAPI + PostgreSQL)
+
+Starts both the **FastAPI Application** and dedicated **PostgreSQL 16 Database** container with healthchecks and persistent storage volumes:
 
 ```bash
 docker compose up --build
 ```
-Access the application at [http://localhost:8000](http://localhost:8000).
+- Web Application: [http://localhost:8000](http://localhost:8000)
+- PostgreSQL Database: `localhost:5432` (`postgres:postgrespassword`, DB: `lenny_growth_db`)
+
+---
+
+### 🗄️ Database Persistence (PostgreSQL & Supabase / Railway)
+
+The persistence layer ([app/database.py](file:///c:/oogway%20project/app/database.py)) stores conversations, session IDs, timestamps, and artifacts in PostgreSQL:
+1. **Docker Compose**: Uses the bundled PostgreSQL 16 container automatically.
+2. **Supabase / Railway**: Simply provide your connection URI in `.env`:
+   ```bash
+   DATABASE_URL=postgresql://postgres:[PASSWORD]@[HOST]:5432/[DB]
+   ```
+3. **Local Dev Fallback**: If running without Docker or PostgreSQL installed, it cleanly defaults to SQLite (`./lenny_assistant.db`) so evaluator testing is never blocked.
 
 ---
 

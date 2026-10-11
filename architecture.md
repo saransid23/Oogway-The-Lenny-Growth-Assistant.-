@@ -136,14 +136,12 @@ flowchart TD
 
 ### Mode 1: Bare Metal / Local Python
 - Host runs Python 3.10+ directly with Uvicorn worker process.
-- Database: local SQLite database file (`./lenny_assistant.db`).
+- Database: PostgreSQL (via local instance, Docker, or hosted Supabase/Railway via `DATABASE_URL`), with automatic SQLite fallback for zero-install developer convenience.
 - Ollama: runs as local background daemon on `http://127.0.0.1:11434`.
 
-### Mode 2: Docker Compose Containerization
-- Container: `lenny_growth_assistant` built from multi-stage lightweight Python Dockerfile.
-- Port: `8000:8000`.
-- Ollama Network Bridge: Host Ollama accessed via `http://host.docker.internal:11434`.
-- Volumes:
-  - `./data` mounted into `/app/data` (read/write transcript ingestion).
-  - `./lenny_assistant.db` mounted into `/app/lenny_assistant.db` (state persistence across restarts).
+### Mode 2: Docker Compose Multi-Container Topology (Production Ready)
+- **Database Service (`db`)**: Official `postgres:16-alpine` container with automated healthcheck (`pg_isready`), dedicated port `5432:5432`, and named volume `postgres_data` for durable storage.
+- **Application Service (`app`)**: `lenny_growth_assistant` FastAPI backend + UI, depending on `db` healthcheck.
+- **Network Bridge**: Accesses host Ollama via `http://host.docker.internal:11434`.
+- **Database Connection**: Automatically configured to `postgresql://postgres:postgrespassword@db:5432/lenny_growth_db`.
 

@@ -1,9 +1,33 @@
 version: '3.8'
 
 services:
+  # PostgreSQL Persistence Database (As mandated by assignment)
+  db:
+    image: postgres:16-alpine
+    container_name: lenny_postgres_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: lenny_growth_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d lenny_growth_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Application Backend & UI
   app:
     build: .
     container_name: lenny_growth_assistant
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "8000:8000"
     environment:
@@ -12,8 +36,9 @@ services:
       - HOST=0.0.0.0
       - DEFAULT_LLM_PROVIDER=local
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
-      - DATABASE_URL=sqlite:///./lenny_assistant.db
+      - DATABASE_URL=postgresql://postgres:postgrespassword@db:5432/lenny_growth_db
     volumes:
       - ./data:/app/data
-      - ./lenny_assistant.db:/app/lenny_assistant.db
-    restart: unless-stopped
+
+volumes:
+  postgres_data:

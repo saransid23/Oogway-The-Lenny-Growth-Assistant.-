@@ -1,17 +1,36 @@
 import os
 import json
 import uuid
+import logging
 from datetime import datetime, timezone
 from sqlalchemy import create_engine, Column, String, Text, DateTime, ForeignKey, Integer
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from app.config import settings
 
-# Setup engine with appropriate parameters for SQLite/PostgreSQL
-connect_args = {}
-if settings.DATABASE_URL.startswith("sqlite"):
-    connect_args = {"check_same_thread": False}
+logger = logging.getLogger("lenny_assistant.database")
 
-engine = create_engine(settings.DATABASE_URL, connect_args=connect_args)
+# Normalize PostgreSQL URL (Supabase/Railway often provide postgres:// instead of postgresql://)
+db_url = settings.DATABASE_URL
+if db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql://", 1)
+
+# Configure engine parameters
+connect_args = {}
+engine_kwargs = {"pool_pre_ping": True}
+
+if db_url.startswith("sqlite"):
+    connect_args = {"check_same_thread": False}
+    engine_kwargs["connect_args"] = connect_args
+else:
+    logger.info("Configured PostgreSQL persistence engine")
+
+try:
+    engine = create_engine(db_url, **engine_kwargs)
+except Exception as e:
+    logger.warning(f"Could not connect to {db_url}: {e}. Falling back to local SQLite.")
+    db_url = "sqlite:///./lenny_assistant.db"
+    engine = create_engine(db_url, connect_args={"check_same_thread": False})
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
