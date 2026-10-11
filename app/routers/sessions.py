@@ -63,6 +63,20 @@ def get_session_messages(session_id: str, db: Session = Depends(get_db)):
                 citations = [Citation(**item) for item in raw_c]
             except Exception:
                 pass
+        
+        artifact_obj = None
+        if m.artifact_id:
+            art_db = db.query(ArtifactModel).filter(ArtifactModel.id == m.artifact_id).first()
+            if art_db:
+                artifact_obj = ArtifactResponse(
+                    id=art_db.id,
+                    session_id=art_db.session_id,
+                    title=art_db.title,
+                    artifact_type=art_db.artifact_type,
+                    content=art_db.content,
+                    created_at=art_db.created_at
+                )
+
         res.append(
             MessageResponse(
                 id=m.id,
@@ -71,6 +85,7 @@ def get_session_messages(session_id: str, db: Session = Depends(get_db)):
                 content=m.content,
                 citations=citations,
                 artifact_id=m.artifact_id,
+                artifact=artifact_obj,
                 created_at=m.created_at
             )
         )

@@ -57,6 +57,7 @@ class MessageResponse(BaseModel):
     content: str
     citations: List[Citation] = []
     artifact_id: Optional[str] = None
+    artifact: Optional[ArtifactResponse] = None
     created_at: datetime
 
 class SkillShip30Request(BaseModel):

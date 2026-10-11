@@ -359,18 +359,17 @@ document.addEventListener("DOMContentLoaded", () => {
   // ARTIFACT VIEWER
   // -------------------------------------------------------------
   function displayArtifact(artifact) {
+    if (!artifact) return;
     activeArtifact = artifact;
-    artifactTitle.innerText = artifact.title;
+    artifactTitle.innerText = artifact.title || "Generated Artifact";
     artifactSubTag.innerText = artifact.artifact_type === "html" ? "HTML Render Snippet" : "Markdown Document";
 
     if (artifact.artifact_type === "html") {
       artifactIframe.classList.remove("hidden");
       artifactMarkdownView.classList.add("hidden");
       
-      const doc = artifactIframe.contentWindow.document;
-      doc.open();
-      doc.write(artifact.content);
-      doc.close();
+      // Use srcdoc for secure sandboxed iframe rendering (prevents cross-origin DOM exceptions)
+      artifactIframe.srcdoc = artifact.content;
     } else {
       artifactIframe.classList.add("hidden");
       artifactMarkdownView.classList.remove("hidden");
@@ -399,6 +398,42 @@ document.addEventListener("DOMContentLoaded", () => {
       codeView.classList.add("active");
       renderView.classList.remove("active");
     }
+  }
+
+  function getDefaultDemoDashboard() {
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { background: #09090b; color: #f4f4f5; font-family: sans-serif; padding: 20px; }
+    h2 { font-size: 1.1rem; color: #fff; margin-bottom: 4px; }
+    p { font-size: 0.75rem; color: #71717a; margin-bottom: 16px; }
+    .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px; }
+    .card { background: #141417; border: 1px solid #27272a; padding: 12px; border-radius: 8px; }
+    .label { font-size: 0.7rem; color: #71717a; text-transform: uppercase; font-weight: bold; }
+    .val { font-size: 1.3rem; font-weight: 800; margin-top: 4px; color: #f59e0b; }
+    .bar-box { background: #141417; border: 1px solid #27272a; padding: 14px; border-radius: 8px; }
+    .bar { height: 16px; background: #27272a; border-radius: 4px; overflow: hidden; margin: 8px 0; }
+    .fill { height: 100%; background: #6366f1; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h2>B2B PLG Activation Tracker</h2>
+  <p>Elena Verna Growth & PQL Framework</p>
+  <div class="grid">
+    <div class="card"><div class="label">Total Signups</div><div class="val">14,200</div></div>
+    <div class="card"><div class="label">PQLs Identified</div><div class="val">1,420</div></div>
+    <div class="card"><div class="label">Activation Rate</div><div class="val" style="color:#10b981;">38.5%</div></div>
+    <div class="card"><div class="label">Paid Win Rate</div><div class="val" style="color:#38bdf8;">32.0%</div></div>
+  </div>
+  <div class="bar-box">
+    <div style="font-size:0.75rem; font-weight:bold;">Activation Milestone Funnel</div>
+    <div class="bar"><div class="fill" style="width: 38.5%;"></div></div>
+    <div style="font-size:0.7rem; color:#71717a;">38.5% reach Core Aha Moment within 48h</div>
+  </div>
+</body>
+</html>`;
   }
 
   // -------------------------------------------------------------
@@ -460,7 +495,20 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     btnToggleArtifact.addEventListener("click", () => {
-      artifactPane.classList.toggle("collapsed");
+      if (artifactPane.classList.contains("collapsed")) {
+        if (!activeArtifact) {
+          displayArtifact({
+            id: "default-dashboard",
+            session_id: currentSessionId || "default",
+            title: "PLG Activation & PQL Tracker",
+            artifact_type: "html",
+            content: getDefaultDemoDashboard()
+          });
+        }
+        artifactPane.classList.remove("collapsed");
+      } else {
+        artifactPane.classList.add("collapsed");
+      }
     });
 
     btnCloseArtifact.addEventListener("click", () => {
