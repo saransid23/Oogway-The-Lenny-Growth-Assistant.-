@@ -247,7 +247,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Handle Artifact display
         if (data.artifact) {
-          displayArtifact(data.artifact);
+          try {
+            displayArtifact(data.artifact);
+          } catch (artErr) {
+            console.warn("Artifact render notice:", artErr);
+          }
           if (artifactCountBadge) {
             artifactCountBadge.classList.remove("hidden");
           }
