@@ -76,7 +76,23 @@ class ArtifactModel(Base):
     session = relationship("SessionModel", back_populates="artifacts")
 
 def init_db():
-    Base.metadata.create_all(bind=engine)
+    global engine, SessionLocal
+    try:
+        # Test connecting with the configured engine
+        with engine.connect() as conn:
+            pass
+        Base.metadata.create_all(bind=engine)
+        logger.info(f"Database initialized successfully with {engine.url.drivername}")
+    except Exception as e:
+        logger.warning(
+            f"Configured database ({engine.url}) unreachable: {e}. "
+            "Falling back to local SQLite (lenny_assistant.db)."
+        )
+        sqlite_url = "sqlite:///./lenny_assistant.db"
+        engine = create_engine(sqlite_url, connect_args={"check_same_thread": False})
+        SessionLocal.configure(bind=engine)
+        Base.metadata.create_all(bind=engine)
+        logger.info("Local SQLite database initialized successfully as fallback.")
 
 def get_db():
     db = SessionLocal()
