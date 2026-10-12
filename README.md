@@ -165,12 +165,4 @@ pytest -v
 
 ---
 
-## 📬 Final Submission
-- **Google Form**: [https://forms.gle/LgotDHNVxW1mbzNE7](https://forms.gle/LgotDHNVxW1mbzNE7)
-- **Due Date**: 12/10/26 EOD
-
----
-
-## 🛡️ License & Handoff
-Built for the Forward Deployed Engineer Engagement.
 
