@@ -1,10 +1,18 @@
 import os
 import json
 import re
+import math
 import hashlib
 import logging
 from typing import List, Dict, Any, Optional, Tuple
 from app.config import settings
+
+try:
+    import numpy as np
+    HAS_NUMPY = True
+except ImportError:
+    np = None  # type: ignore
+    HAS_NUMPY = False
 
 logger = logging.getLogger("lenny_assistant.knowledge_base")
 
@@ -35,6 +43,12 @@ class TranscriptChunk:
         self.tokens = self._tokenize(f"{title} {guest} {topic} {text}")
         self.embedding: Optional[List[float]] = None
 
+        # Precomputed lowercased strings for fast keyword scoring
+        self.guest_lower: str = guest.lower()
+        self.topic_lower: str = topic.lower()
+        self.title_lower: str = title.lower()
+        self.text_lower: str = text.lower()
+
     def _compute_hash(self, text: str) -> str:
         return hashlib.sha256(text.strip().encode("utf-8")).hexdigest()[:16]
 
@@ -47,7 +61,7 @@ class KnowledgeBase:
     Transcript Knowledge Base & Ingestion Pipeline:
     - Incremental ingestion & idempotent duplicate detection.
     - Configurable text chunking with sliding overlap.
-    - Metadata preservation (title, guest, date, source URL, timestamp, topic).
+    - Vectorized similarity matrix for fast retrieval.
     - Cache invalidation and reporting of processed, skipped, and failed records.
     """
 
@@ -56,14 +70,119 @@ class KnowledgeBase:
         self.chunks: List[TranscriptChunk] = []
         self._chunk_map: Dict[str, TranscriptChunk] = {}
         self._seen_hashes: set = set()
+        
+        # Vector index state
+        self._matrix: Optional[Any] = None
+        self._matrix_indices: List[int] = []
+        self._embedding_dim: Optional[int] = None
+        self._indexed_chunk_count: Optional[int] = None
+
         self.load_transcripts()
         self.load_embeddings()
+
+    def _invalidate_index(self):
+        """Invalidates vectorized index structures."""
+        self._matrix = None
+        self._matrix_indices = []
+        self._embedding_dim = None
+        self._indexed_chunk_count = None
+
+    def _ensure_index(self):
+        """Lazily builds a normalized embedding matrix plus a row-to-chunk position map."""
+        if self._indexed_chunk_count == len(self.chunks) and self._matrix is not None:
+            return
+
+        self._invalidate_index()
+        self._indexed_chunk_count = len(self.chunks)
+
+        if not self.chunks:
+            return
+
+        first_emb = next((c.embedding for c in self.chunks if c.embedding), None)
+        if not first_emb:
+            return
+
+        self._embedding_dim = len(first_emb)
+
+        valid_indices = []
+        valid_vectors = []
+        for idx, chunk in enumerate(self.chunks):
+            if chunk.embedding and len(chunk.embedding) == self._embedding_dim:
+                valid_indices.append(idx)
+                valid_vectors.append(chunk.embedding)
+
+        if not valid_vectors:
+            return
+
+        self._matrix_indices = valid_indices
+
+        if HAS_NUMPY:
+            mat = np.array(valid_vectors, dtype=np.float64)
+            norms = np.linalg.norm(mat, axis=1, keepdims=True)
+            norms[norms == 0.0] = 1.0
+            self._matrix = mat / norms
+        else:
+            self._matrix = valid_vectors
+
+    def semantic_scores(self, query_embedding: Optional[List[float]]) -> Optional[Tuple[Any, Any]]:
+        """
+        Returns (scores, has_score) aligned with self.chunks, with scores clipped to [0, 1].
+        Returns None when query_embedding is empty or dimensions mismatch.
+        """
+        if not query_embedding or not self.chunks:
+            return None
+
+        self._ensure_index()
+        if self._embedding_dim is None or len(query_embedding) != self._embedding_dim:
+            return None
+
+        n_chunks = len(self.chunks)
+
+        if HAS_NUMPY and isinstance(self._matrix, np.ndarray):
+            q = np.array(query_embedding, dtype=np.float64)
+            q_norm = float(np.linalg.norm(q))
+            if q_norm == 0.0:
+                scores = np.zeros(n_chunks, dtype=np.float64)
+                has_score = np.zeros(n_chunks, dtype=bool)
+                has_score[self._matrix_indices] = True
+                return scores, has_score
+
+            q_normed = q / q_norm
+            dots = np.dot(self._matrix, q_normed)
+            clipped = np.clip(dots, 0.0, 1.0)
+
+            scores = np.zeros(n_chunks, dtype=np.float64)
+            has_score = np.zeros(n_chunks, dtype=bool)
+            scores[self._matrix_indices] = clipped
+            has_score[self._matrix_indices] = True
+            return scores, has_score
+        else:
+            # Pure Python fallback
+            scores = [0.0] * n_chunks
+            has_score = [False] * n_chunks
+            q_sum_sq = sum(x * x for x in query_embedding)
+            norm_q = math.sqrt(q_sum_sq) if q_sum_sq > 0 else 0.0
+
+            for idx, chunk in enumerate(self.chunks):
+                if chunk.embedding and len(chunk.embedding) == self._embedding_dim:
+                    has_score[idx] = True
+                    if norm_q == 0.0:
+                        scores[idx] = 0.0
+                    else:
+                        dot = sum(a * b for a, b in zip(query_embedding, chunk.embedding))
+                        norm_c = math.sqrt(sum(a * a for a in chunk.embedding))
+                        if norm_c == 0.0:
+                            scores[idx] = 0.0
+                        else:
+                            scores[idx] = max(0.0, min(dot / (norm_q * norm_c), 1.0))
+            return scores, has_score
 
     def load_transcripts(self) -> Dict[str, Any]:
         """
         Loads all transcripts idempotently from disk, skipping duplicates.
         Returns detailed ingestion statistics.
         """
+        self._invalidate_index()
         self.chunks = []
         self._chunk_map = {}
         self._seen_hashes = set()
@@ -94,6 +213,7 @@ class KnowledgeBase:
                     logger.error(f"Error loading transcript file {filename}: {e}")
                     stats["failed"] += 1
 
+        self._invalidate_index()
         logger.info(f"Knowledge Base loaded: {len(self.chunks)} total chunks across {stats['documents_processed']} episodes.")
         return stats
 
@@ -178,7 +298,6 @@ class KnowledgeBase:
         if not text:
             return 0, 0
 
-        # If text is exceptionally long (> 1000 characters), split with overlap
         if len(text) > 1200:
             return self._chunk_long_text(
                 t_id=f"{t_id}-{chunk_idx}",
@@ -193,7 +312,7 @@ class KnowledgeBase:
 
         content_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
         if content_hash in self._seen_hashes:
-            return 0, 1  # Duplicate skipped
+            return 0, 1
 
         chunk_id = f"{t_id}-{chunk_idx}"
         chunk = TranscriptChunk(
@@ -291,7 +410,7 @@ class KnowledgeBase:
         if missing_chunks:
             try:
                 import urllib.request
-                for chunk in missing_chunks[:20]:  # Batch bounded to avoid blocking startup
+                for chunk in missing_chunks[:20]:  # Bounded to avoid blocking
                     embed_text = f"{chunk.guest} - {chunk.topic}: {chunk.text}"
                     req = urllib.request.Request(
                         f"{settings.OLLAMA_BASE_URL}/api/embeddings",
@@ -310,11 +429,22 @@ class KnowledgeBase:
                                 "hash": chunk.content_hash,
                                 "embedding": emb
                             }
-
-                with open(cache_path, "w", encoding="utf-8") as f:
-                    json.dump(cached, f)
             except Exception:
                 pass
+            finally:
+                try:
+                    with open(cache_path, "w", encoding="utf-8") as f:
+                        json.dump(cached, f)
+                except Exception:
+                    pass
+
+        self._invalidate_index()
+
+    def reload(self) -> Dict[str, Any]:
+        """Full re-indexing of transcript files and cached embeddings."""
+        stats = self.load_transcripts()
+        self.load_embeddings()
+        return stats
 
     def invalidate_cache(self):
         """Invalidates embeddings cache when documents change."""
@@ -324,7 +454,6 @@ class KnowledgeBase:
                 os.remove(cache_path)
             except Exception as e:
                 logger.warning(f"Failed to remove cache file: {e}")
-        self.load_transcripts()
-        self.load_embeddings()
+        self.reload()
 
 knowledge_base = KnowledgeBase()

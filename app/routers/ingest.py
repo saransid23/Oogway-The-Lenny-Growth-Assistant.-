@@ -81,8 +81,9 @@ async def upload_transcript(file: UploadFile = File(...)):
         with open(target_path, "wb") as f:
             f.write(content)
 
-        # 6. Incremental ingestion and reporting
-        stats = knowledge_base.load_transcripts()
+        # 6. Incremental ingestion and reporting with reload
+        from starlette.concurrency import run_in_threadpool
+        stats = await run_in_threadpool(knowledge_base.reload)
         logger.info(f"Ingested '{clean_filename}': {stats['chunks_created']} chunks created, {stats['duplicates_skipped']} duplicates skipped.")
 
         return {

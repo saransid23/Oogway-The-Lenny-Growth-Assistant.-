@@ -150,7 +150,42 @@ pytest -v
 
 ---
 
-## 📄 Deliverables Index (Evaluation Checklist)
+## ⚡ Real-Time Streaming & Performance Configuration
+
+The application includes an optimized Server-Sent Events (SSE) streaming endpoint and performance tuning layer:
+
+### 1. Streaming Chat Endpoint (`POST /api/chat/stream`)
+- **Protocol**: Server-Sent Events (`text/event-stream`).
+- **Events Emitted**:
+  - `event: meta` — Immediate event containing citation metadata, active provider, model name, and `evidence_found` boolean flag.
+  - `event: token` — Individual generated tokens delivered in real time for progressive UI rendering.
+  - `event: done` — Complete `ChatResponse` payload matching `/api/chat` with persisted message ID, formatted citations, and extracted artifact objects.
+  - `event: error` — Structured error message if an exception occurs during stream generation.
+- **Routing**: Automatically streams tokens for local RAG execution; non-local or specialized skill calls are cleanly delivered as single atomic completions.
+
+### 2. Performance Tuning Environment Variables (`.env`)
+The following optional settings can be configured in `.env` (or `.env.example`):
+
+```bash
+# Local LLM Keep-Alive & Bounded Generation
+OLLAMA_KEEP_ALIVE=30m             # Prevents model de-allocation between user prompts
+OLLAMA_NUM_PREDICT=400            # Bounded output token target for sub-2s time-to-first-token
+
+# Non-Blocking RAG & Embedding Cache
+EMBED_TIMEOUT_SECONDS=2.0         # Fast timeout for Ollama embedding calls
+EMBED_BACKOFF_SECONDS=30.0        # Circuit breaker skips embedding during service outages
+EMBED_CACHE_SIZE=256              # LRU in-memory query embedding cache capacity
+
+# Chat Context & Database Pooling
+HISTORY_MAX_MESSAGES=6            # Bounded history window to limit prompt bloat
+HISTORY_MSG_MAX_CHARS=600         # Per-message truncation limit for pruned chat turns
+DB_POOL_SIZE=5                    # PostgreSQL connection pool capacity
+DB_MAX_OVERFLOW=10                # Max overflow connections for PostgreSQL
+```
+
+For complete empirical benchmarks and measurement methodology, see [docs/performance.md](file:///c:/oogway%20project/docs/performance.md).
+
+---
 
 | # | Deliverable | Location / Resource | Status |
 |:---:|:---|:---|:---:|

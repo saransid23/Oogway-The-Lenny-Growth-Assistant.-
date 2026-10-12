@@ -220,58 +220,235 @@ document.addEventListener("DOMContentLoaded", () => {
     const loadingElem = appendLoadingUI();
     scrollToBottom();
 
-    try {
-      const endpoint = useSkill === "ship30" ? "/api/skills/ship30" : "/api/chat";
-      const payload = useSkill === "ship30"
-        ? { session_id: currentSessionId, topic: text, provider: activeProvider }
-        : { session_id: currentSessionId, message: text, provider: activeProvider, use_skill: useSkill };
-
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-
-      loadingElem.remove();
-
-      if (res.ok) {
-        const data = await res.json();
-        
-        // Append Assistant Response
-        appendMessageUI({
-          sender: "assistant",
-          content: data.reply,
-          citations: data.citations,
-          artifact: data.artifact
+    // If Ship 30 skill explicitly requested, call skill endpoint
+    if (useSkill === "ship30") {
+      try {
+        const res = await fetch("/api/skills/ship30", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            session_id: currentSessionId,
+            topic: text,
+            provider: activeProvider
+          })
         });
-
-        // Handle Artifact display
-        if (data.artifact) {
-          try {
+        loadingElem.remove();
+        if (res.ok) {
+          const data = await res.json();
+          appendMessageUI({
+            sender: "assistant",
+            content: data.reply,
+            citations: data.citations,
+            artifact: data.artifact
+          });
+          if (data.artifact) {
             displayArtifact(data.artifact);
-          } catch (artErr) {
-            console.warn("Artifact render notice:", artErr);
+            if (artifactCountBadge) artifactCountBadge.classList.remove("hidden");
           }
-          if (artifactCountBadge) {
-            artifactCountBadge.classList.remove("hidden");
-          }
+          await loadSessions();
+          scrollToBottom();
+        } else {
+          appendMessageUI({
+            sender: "assistant",
+            content: "❌ Error connecting to Ship 30 Skill API."
+          });
         }
-
-        await loadSessions();
-        scrollToBottom();
-      } else {
+      } catch (err) {
+        loadingElem.remove();
         appendMessageUI({
           sender: "assistant",
-          content: "❌ Error connecting to Assistant API."
+          content: `❌ Communication Failure: ${err.message}`
         });
       }
-    } catch (err) {
-      loadingElem.remove();
-      appendMessageUI({
-        sender: "assistant",
-        content: `❌ Communication Failure: ${err.message}`
-      });
+      return;
     }
+
+    // Standard Chat with SSE Streaming
+    let streamStarted = false;
+    try {
+      const res = await fetch("/api/chat/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_id: currentSessionId,
+          message: text,
+          provider: activeProvider,
+          use_skill: useSkill
+        })
+      });
+
+      if (!res.ok || !res.body) {
+        throw new Error("Stream connection failed to initialize");
+      }
+
+      // Stream successfully initialized
+      streamStarted = true;
+      loadingElem.remove();
+
+      // Create live assistant message row
+      const liveRow = appendMessageUI({
+        sender: "assistant",
+        content: ""
+      });
+      const liveContentEl = liveRow.querySelector(".msg-content");
+      let accumulatedText = "";
+      let rafId = null;
+
+      function scheduleRender() {
+        if (rafId) return;
+        rafId = requestAnimationFrame(() => {
+          if (liveContentEl) {
+            liveContentEl.innerHTML = formatMarkdownSafe(accumulatedText);
+            scrollToBottom();
+          }
+          rafId = null;
+        });
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop() || "";
+
+        for (const block of parts) {
+          if (!block.trim()) continue;
+          const lines = block.split("\n");
+          let eventType = "message";
+          let eventData = "";
+
+          for (const line of lines) {
+            if (line.startsWith("event:")) {
+              eventType = line.substring(6).trim();
+            } else if (line.startsWith("data:")) {
+              eventData = line.substring(5).trim();
+            }
+          }
+
+          if (eventType === "token") {
+            try {
+              const parsed = JSON.parse(eventData);
+              accumulatedText += (parsed.token || "");
+              scheduleRender();
+            } catch (e) {
+              accumulatedText += eventData;
+              scheduleRender();
+            }
+          } else if (eventType === "done") {
+            if (rafId) {
+              cancelAnimationFrame(rafId);
+              rafId = null;
+            }
+            try {
+              const finalData = JSON.parse(eventData);
+              // Replace live row with fully formatted row including citations & artifacts
+              liveRow.remove();
+              appendMessageUI({
+                sender: "assistant",
+                content: finalData.reply || accumulatedText,
+                citations: finalData.citations,
+                artifact: finalData.artifact
+              });
+
+              if (finalData.artifact) {
+                displayArtifact(finalData.artifact);
+                if (artifactCountBadge) artifactCountBadge.classList.remove("hidden");
+              }
+            } catch (e) {
+              if (liveContentEl) {
+                liveContentEl.innerHTML = formatMarkdownSafe(accumulatedText);
+              }
+            }
+            await loadSessions();
+            scrollToBottom();
+          } else if (eventType === "error") {
+            let errMsg = "Stream error occurred";
+            try {
+              errMsg = JSON.parse(eventData).detail || errMsg;
+            } catch (e) {}
+            if (liveContentEl) {
+              liveContentEl.innerHTML = formatMarkdownSafe(accumulatedText + `\n\n❌ *${errMsg}*`);
+            }
+          }
+        }
+      }
+
+    } catch (streamErr) {
+      if (streamStarted) {
+        // Failed after starting: show error, DO NOT retry (user message was already stored on server)
+        console.error("Stream aborted during read:", streamErr);
+        appendMessageUI({
+          sender: "assistant",
+          content: `❌ Stream interrupted: ${streamErr.message}`
+        });
+      } else {
+        // Fallback to /api/chat ONLY if stream never started
+        console.warn("Stream could not start, falling back to /api/chat:", streamErr);
+        try {
+          const res = await fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              session_id: currentSessionId,
+              message: text,
+              provider: activeProvider,
+              use_skill: useSkill
+            })
+          });
+          loadingElem.remove();
+          if (res.ok) {
+            const data = await res.json();
+            appendMessageUI({
+              sender: "assistant",
+              content: data.reply,
+              citations: data.citations,
+              artifact: data.artifact
+            });
+            if (data.artifact) {
+              displayArtifact(data.artifact);
+              if (artifactCountBadge) artifactCountBadge.classList.remove("hidden");
+            }
+            await loadSessions();
+            scrollToBottom();
+          } else {
+            appendMessageUI({
+              sender: "assistant",
+              content: "❌ Error connecting to Assistant API."
+            });
+          }
+        } catch (fallbackErr) {
+          loadingElem.remove();
+          appendMessageUI({
+            sender: "assistant",
+            content: `❌ Communication Failure: ${fallbackErr.message}`
+          });
+        }
+      }
+    }
+  }
+
+  function formatMarkdownSafe(text) {
+    if (!text) return "";
+    if (typeof marked !== "undefined" && typeof DOMPurify !== "undefined") {
+      try {
+        return DOMPurify.sanitize(marked.parse(text));
+      } catch (e) {
+        return escapeHtml(text);
+      }
+    } else if (typeof marked !== "undefined") {
+      try {
+        return marked.parse(text);
+      } catch (e) {
+        return escapeHtml(text);
+      }
+    }
+    return escapeHtml(text);
   }
 
   function appendMessageUI(msg) {
@@ -287,8 +464,8 @@ document.addEventListener("DOMContentLoaded", () => {
       citationsHtml = `<div class="citations-container">`;
       msg.citations.forEach((c) => {
         citationsHtml += `
-          <div class="citation-badge" title="${escapeHtml(c.quote)}">
-            <i class="fa-solid fa-quote-left"></i> ${escapeHtml(c.guest)} • ${c.timestamp}
+          <div class="citation-badge" title="${escapeHtml(c.quote || '')}">
+            <i class="fa-solid fa-quote-left"></i> ${escapeHtml(c.guest || 'Guest')} • ${escapeHtml(c.timestamp || '')}
           </div>
         `;
       });
@@ -312,13 +489,7 @@ document.addEventListener("DOMContentLoaded", () => {
       `;
     }
 
-    let formattedBody = msg.content;
-    if (typeof marked !== "undefined") {
-      try {
-        const rawHtml = marked.parse(msg.content);
-        formattedBody = (typeof DOMPurify !== "undefined") ? DOMPurify.sanitize(rawHtml) : rawHtml;
-      } catch (e) {}
-    }
+    const formattedBody = formatMarkdownSafe(msg.content || "");
 
     row.innerHTML = `
       <div class="msg-avatar">${avatar}</div>
@@ -338,6 +509,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     messagesContainer.appendChild(row);
+    return row;
   }
 
   function appendLoadingUI() {
@@ -397,12 +569,16 @@ document.addEventListener("DOMContentLoaded", () => {
       tabRender.classList.add("active");
       tabCode.classList.remove("active");
       renderView.classList.add("active");
+      renderView.classList.remove("hidden");
       codeView.classList.remove("active");
+      codeView.classList.add("hidden");
     } else {
       tabCode.classList.add("active");
       tabRender.classList.remove("active");
       codeView.classList.add("active");
+      codeView.classList.remove("hidden");
       renderView.classList.remove("active");
+      renderView.classList.add("hidden");
     }
   }
 

@@ -96,7 +96,7 @@ class Ship30Skill:
         logger.info(f"Generating Ship 30 essay on topic: '{topic}' for audience: '{target_audience}'")
 
         # Step 1: Retrieve grounded transcript evidence
-        chunks, citations = retriever.search(topic, top_k=4, threshold=0.08)
+        chunks, citations = await retriever.asearch(topic, top_k=4, threshold=0.08)
         has_sufficient_evidence = len(chunks) > 0 and citations[0].score >= 0.08
 
         # Step 2: Format context and prompt

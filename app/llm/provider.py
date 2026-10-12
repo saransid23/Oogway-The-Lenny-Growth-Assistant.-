@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, List, Dict, Any, Tuple, AsyncGenerator
 from app.config import settings
 from app.llm.ollama_client import ollama_client
 from app.llm.cloud_client import cloud_client
@@ -14,6 +14,7 @@ class LLMProvider:
     Core LLM Provider & Grounded Answer Engine:
     - Enforces strict transcript grounding for PM and growth questions.
     - Manages explicit model selection without silent hidden switching.
+    - Supports real-time token streaming via Ollama.
     - Identifies insufficient evidence and returns structured evidence_found flag.
     - Formats verified transcript citations.
     """
@@ -28,6 +29,40 @@ class LLMProvider:
         "5. INSUFFICIENT EVIDENCE: If the retrieved transcript context does not contain sufficient facts to answer the question, clearly state that Lenny's indexed transcripts do not contain this information. Do not fabricate unsupported general knowledge.\n"
         "6. ARTIFACTS: When creating code snippets, Markdown documents, or HTML dashboards, format them in standard Markdown codeblocks (```html or ```markdown)."
     )
+
+    def _build_grounded_prompt(
+        self,
+        query: str,
+        chunks: List[TranscriptChunk],
+        chat_history: Optional[List[Dict[str, str]]] = None
+    ) -> str:
+        """Extracts and formats grounded RAG prompt with pruned chat history."""
+        context_str = retriever.format_rag_context(chunks)
+
+        history_str = ""
+        if chat_history:
+            history_str = "Recent Conversation Context:\n"
+            for msg in chat_history[-3:]:
+                role = msg.get("role", "user").upper()
+                content = msg.get("content", "")
+                if len(content) > settings.HISTORY_MSG_MAX_CHARS:
+                    content = content[:settings.HISTORY_MSG_MAX_CHARS] + "..."
+                history_str += f"{role}: {content}\n"
+            history_str += "\n"
+
+        top_guest = chunks[0].guest if chunks else "Lenny's Podcast Guest"
+        top_title = chunks[0].title if chunks else "Episode"
+
+        return (
+            f"{history_str}"
+            f"LENNY'S PODCAST TRANSCRIPT EVIDENCE:\n{context_str}\n\n"
+            f"USER QUESTION: {query}\n\n"
+            f"INSTRUCTIONS:\n"
+            f"- Ground your answer STRICTLY in the transcript evidence above.\n"
+            f"- Attribute claims explicitly to the guest (e.g. {top_guest}) and episode ({top_title}).\n"
+            f"- Distinguish direct quotes from paraphrases.\n"
+            f"- Do not present unsupported general claims as transcript facts."
+        )
 
     async def generate_completion(
         self,
@@ -83,8 +118,8 @@ class LLMProvider:
 
         used_model = model_name or (settings.OLLAMA_MODEL if provider == "local" else settings.OPENAI_MODEL)
 
-        # 1. Search knowledge base for transcript grounding
-        chunks, citations = retriever.search(query, top_k=3, threshold=0.08)
+        # 1. Async search knowledge base for transcript grounding
+        chunks, citations = await retriever.asearch(query, top_k=3, threshold=0.08)
         evidence_found = len(chunks) > 0 and citations[0].score >= 0.08
 
         # 2. Handle insufficient evidence explicitly without hallucinating
@@ -94,25 +129,7 @@ class LLMProvider:
             return insufficient_reply, provider, used_model, [], False
 
         # 3. Construct grounded RAG prompt
-        context_str = retriever.format_rag_context(chunks)
-        
-        history_str = ""
-        if chat_history:
-            history_str = "Recent Conversation Context:\n"
-            for msg in chat_history[-3:]:
-                history_str += f"{msg['role'].upper()}: {msg['content']}\n"
-            history_str += "\n"
-
-        full_prompt = (
-            f"{history_str}"
-            f"LENNY'S PODCAST TRANSCRIPT EVIDENCE:\n{context_str}\n\n"
-            f"USER QUESTION: {query}\n\n"
-            f"INSTRUCTIONS:\n"
-            f"- Ground your answer STRICTLY in the transcript evidence above.\n"
-            f"- Attribute claims explicitly to the guest (e.g. {chunks[0].guest}) and episode ({chunks[0].title}).\n"
-            f"- Distinguish direct quotes from paraphrases.\n"
-            f"- Do not present unsupported general claims as transcript facts."
-        )
+        full_prompt = self._build_grounded_prompt(query, chunks, chat_history)
 
         # 4. Invoke model
         response_text = None
@@ -144,6 +161,117 @@ class LLMProvider:
             used_model = "grounded-evidence-synthesizer"
 
         return response_text, provider, used_model, citations, True
+
+    async def stream_response(
+        self,
+        query: str,
+        chat_history: Optional[List[Dict[str, str]]] = None,
+        requested_provider: Optional[str] = None,
+        model_name: Optional[str] = None
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Streams grounded responses via Ollama. Yields events:
+        - {"event": "meta", "data": {...}}
+        - {"event": "token", "data": {"token": "..."}}
+        - {"event": "final", "data": {...}}
+        """
+        provider = (requested_provider or settings.DEFAULT_LLM_PROVIDER).lower()
+        if provider not in ["local", "cloud"]:
+            provider = "local"
+
+        used_model = model_name or (settings.OLLAMA_MODEL if provider == "local" else settings.OPENAI_MODEL)
+
+        # 1. Async search
+        chunks, citations = await retriever.asearch(query, top_k=3, threshold=0.08)
+        evidence_found = len(chunks) > 0 and citations[0].score >= 0.08
+
+        citations_payload = [
+            c.model_dump() if hasattr(c, "model_dump") else c.dict()
+            for c in citations
+        ]
+
+        # Emit meta event immediately
+        yield {
+            "event": "meta",
+            "data": {
+                "citations": citations_payload,
+                "provider": provider,
+                "model": used_model,
+                "evidence_found": evidence_found
+            }
+        }
+
+        # 2. Insufficient evidence handling
+        if not evidence_found:
+            insufficient_reply = self._build_insufficient_evidence_reply(query)
+            yield {"event": "token", "data": {"token": insufficient_reply}}
+            yield {
+                "event": "final",
+                "data": {
+                    "reply": insufficient_reply,
+                    "citations": [],
+                    "provider": provider,
+                    "model": used_model,
+                    "evidence_found": False
+                }
+            }
+            return
+
+        # 3. Grounded prompt
+        full_prompt = self._build_grounded_prompt(query, chunks, chat_history)
+
+        # 4. Stream tokens from local Ollama
+        accumulated_tokens: List[str] = []
+        if provider == "local":
+            async for token in ollama_client.stream_generate(full_prompt, system_prompt=self.SYSTEM_PROMPT, model=used_model):
+                accumulated_tokens.append(token)
+                yield {"event": "token", "data": {"token": token}}
+
+        # If streaming succeeded and yielded tokens
+        if accumulated_tokens:
+            full_reply = "".join(accumulated_tokens)
+            yield {
+                "event": "final",
+                "data": {
+                    "reply": full_reply,
+                    "citations": citations_payload,
+                    "provider": provider,
+                    "model": used_model,
+                    "evidence_found": True
+                }
+            }
+            return
+
+        # 5. Fallback if local stream produced nothing
+        fallback_reply = None
+        fallback_provider = provider
+        fallback_model = used_model
+
+        if settings.OPENAI_API_KEY:
+            fallback_reply = await cloud_client.generate_openai(full_prompt, system_prompt=self.SYSTEM_PROMPT)
+            if fallback_reply:
+                fallback_provider = "cloud"
+                fallback_model = settings.OPENAI_MODEL
+        if not fallback_reply and settings.ANTHROPIC_API_KEY:
+            fallback_reply = await cloud_client.generate_anthropic(full_prompt, system_prompt=self.SYSTEM_PROMPT)
+            if fallback_reply:
+                fallback_provider = "cloud"
+                fallback_model = settings.ANTHROPIC_MODEL
+        if not fallback_reply:
+            fallback_reply = self._synthesize_grounded_answer(query, chunks)
+            fallback_model = "grounded-evidence-synthesizer"
+
+        yield {"event": "token", "data": {"token": fallback_reply}}
+        yield {
+            "event": "final",
+            "data": {
+                "reply": fallback_reply,
+                "citations": citations_payload,
+                "provider": fallback_provider,
+                "model": fallback_model,
+                "evidence_found": True
+            }
+        }
 
     def _build_insufficient_evidence_reply(self, query: str) -> str:
         """Standardized insufficient evidence response enforcing strict truthfulness."""

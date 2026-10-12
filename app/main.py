@@ -4,6 +4,7 @@ import uuid
 import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from app.config import settings
@@ -22,6 +23,9 @@ app = FastAPI(
     description="Full-stack AI assistant for Lenny's Podcast growth & product management transcripts",
     version="1.0.0"
 )
+
+# Enable GZip Compression for payloads >= 500 bytes
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 # Enable CORS
 origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",")] if settings.ALLOWED_ORIGINS else ["*"]
@@ -65,14 +69,17 @@ async def observability_middleware(request: Request, call_next):
             headers={"X-Request-ID": req_id}
         )
 
-# Development No-Cache Middleware for Static Assets
+# Static Asset Cache-Control Middleware
 @app.middleware("http")
-async def add_no_cache_headers(request: Request, call_next):
+async def static_cache_middleware(request: Request, call_next):
     response = await call_next(request)
     if request.url.path.startswith("/static") or request.url.path == "/":
-        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-        response.headers["Pragma"] = "no-cache"
-        response.headers["Expires"] = "0"
+        if settings.APP_ENV == "development":
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        else:
+            response.headers["Cache-Control"] = "public, max-age=300"
     return response
 
 # Initialize Database Schema

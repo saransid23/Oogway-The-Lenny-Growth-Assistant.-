@@ -27,6 +27,21 @@ class Settings(BaseSettings):
     # Transcripts
     TRANSCRIPTS_DIR: str = os.getenv("TRANSCRIPTS_DIR", "data/transcripts")
 
+    # Performance & Local LLM Tuning
+    OLLAMA_KEEP_ALIVE: str = os.getenv("OLLAMA_KEEP_ALIVE", "30m")
+    OLLAMA_NUM_PREDICT: int = int(os.getenv("OLLAMA_NUM_PREDICT", "400"))
+    EMBED_TIMEOUT_SECONDS: float = float(os.getenv("EMBED_TIMEOUT_SECONDS", "2.0"))
+    EMBED_BACKOFF_SECONDS: float = float(os.getenv("EMBED_BACKOFF_SECONDS", "30.0"))
+    EMBED_CACHE_SIZE: int = int(os.getenv("EMBED_CACHE_SIZE", "256"))
+
+    # Chat Context Limits
+    HISTORY_MAX_MESSAGES: int = int(os.getenv("HISTORY_MAX_MESSAGES", "6"))
+    HISTORY_MSG_MAX_CHARS: int = int(os.getenv("HISTORY_MSG_MAX_CHARS", "600"))
+
+    # Database Connection Pool Tuning
+    DB_POOL_SIZE: int = int(os.getenv("DB_POOL_SIZE", "5"))
+    DB_MAX_OVERFLOW: int = int(os.getenv("DB_MAX_OVERFLOW", "10"))
+
     # Security & CORS
     ALLOWED_ORIGINS: str = os.getenv("ALLOWED_ORIGINS", "*")
 

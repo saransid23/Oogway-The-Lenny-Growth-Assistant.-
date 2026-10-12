@@ -18,6 +18,46 @@ class AgentRouter:
     - Preserves explicit provider/model selection.
     """
 
+    @staticmethod
+    def classify(
+        user_message: str,
+        requested_skill: Optional[str] = None,
+        requested_provider: Optional[str] = None
+    ) -> str:
+        """
+        Classifies incoming request into execution route:
+        'ship30' | 'html' | 'cloud_agent' | 'rag'
+        """
+        msg_lower = user_message.lower()
+        is_ship30 = requested_skill == "ship30" or "ship 30" in msg_lower or "growth essay" in msg_lower
+        if is_ship30:
+            return "ship30"
+
+        artifact_keywords = [
+            "html", "dashboard", "mockup", "artifact", "simulator", "calculator",
+            "widget", "funnel", "tracker", "interactive tool", "visualizer", "app"
+        ]
+        action_keywords = [
+            "build", "create", "generate", "code", "design", "make", "give", "show",
+            "write", "develop", "provide", "interactive", "pop", "display", "render", "need"
+        ]
+        is_html_request = (
+            any(k in msg_lower for k in artifact_keywords)
+            and (
+                any(w in msg_lower for w in action_keywords)
+                or "html" in msg_lower
+                or "dashboard" in msg_lower
+                or "artifact" in msg_lower
+            )
+        )
+        if is_html_request and not any(k in msg_lower for k in ["what is ", "explain ", "who is "]):
+            return "html"
+
+        if requested_provider == "cloud" and claude_agent.is_available():
+            return "cloud_agent"
+
+        return "rag"
+
     async def route_and_execute(
         self,
         session_id: str,
@@ -30,9 +70,7 @@ class AgentRouter:
         
         logger.info(f"AgentRouter routing session '{session_id}'. Provider: '{requested_provider}', Skill: '{requested_skill}'")
 
-        msg_lower = user_message.lower()
-        is_ship30 = requested_skill == "ship30" or "ship 30" in msg_lower or "growth essay" in msg_lower
-        is_html_request = ("html" in msg_lower or "dashboard" in msg_lower or "mockup" in msg_lower or "artifact" in msg_lower) and any(w in msg_lower for w in ["build", "create", "generate", "code", "design", "make"])
+        route = self.classify(user_message, requested_skill, requested_provider)
 
         citations: List[Citation] = []
         reply_text = ""
@@ -41,7 +79,7 @@ class AgentRouter:
         evidence_found = True
 
         # 1. Ship 30 for 30 Content Skill
-        if is_ship30:
+        if route == "ship30":
             logger.info("Routing to Ship 30 for 30 Content Skill")
             reply_text, citations = await ship30_skill.generate_essay(
                 topic=user_message,
@@ -53,7 +91,7 @@ class AgentRouter:
             evidence_found = len(citations) > 0
 
         # 2. Dynamic HTML Artifact Generation Request
-        elif is_html_request and not any(k in msg_lower for k in ["what is", "explain", "who is"]):
+        elif route == "html":
             logger.info("Routing to Dynamic HTML Artifact Synthesizer")
             reply_text, citations = await self._generate_dynamic_html_artifact(
                 user_message,
@@ -63,7 +101,7 @@ class AgentRouter:
             provider_used = requested_provider or "local"
 
         # 3. Cloud Provider with Anthropic Claude Agent SDK
-        elif requested_provider == "cloud" and claude_agent.is_available():
+        elif route == "cloud_agent":
             logger.info("Routing to Anthropic Claude Agent SDK execution layer")
             agent_res = await claude_agent.run_agent(user_message, chat_history=chat_history)
             if agent_res:
@@ -114,7 +152,7 @@ class AgentRouter:
         """
         Dynamically asks the LLM to generate an interactive HTML/CSS snippet tailored to the user's specific prompt.
         """
-        chunks, citations = retriever.search(user_request, top_k=2, threshold=0.08)
+        chunks, citations = await retriever.asearch(user_request, top_k=2, threshold=0.08)
         context_str = retriever.format_rag_context(chunks) if chunks else ""
 
         artifact_prompt = (

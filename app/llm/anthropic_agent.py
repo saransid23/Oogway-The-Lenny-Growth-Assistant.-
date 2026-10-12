@@ -180,7 +180,7 @@ class AnthropicClaudeAgent:
 
                 if tool_name == "search_transcripts":
                     query = tool_args.get("query", original_query)
-                    chunks, citations = retriever.search(query, top_k=3, threshold=0.08)
+                    chunks, citations = await retriever.asearch(query, top_k=3, threshold=0.08)
                     accumulated_citations.extend(citations)
                     result_str = retriever.format_rag_context(chunks)
                     tool_results.append({

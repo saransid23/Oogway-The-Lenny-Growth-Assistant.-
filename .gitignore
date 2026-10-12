@@ -24,6 +24,8 @@ ENV/
 
 # Local database instances
 *.db
+*.db-wal
+*.db-shm
 *.sqlite3
 lenny_assistant.db
 
