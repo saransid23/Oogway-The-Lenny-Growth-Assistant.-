@@ -315,7 +315,8 @@ document.addEventListener("DOMContentLoaded", () => {
     let formattedBody = msg.content;
     if (typeof marked !== "undefined") {
       try {
-        formattedBody = marked.parse(msg.content);
+        const rawHtml = marked.parse(msg.content);
+        formattedBody = (typeof DOMPurify !== "undefined") ? DOMPurify.sanitize(rawHtml) : rawHtml;
       } catch (e) {}
     }
 
@@ -379,7 +380,8 @@ document.addEventListener("DOMContentLoaded", () => {
       artifactMarkdownView.classList.remove("hidden");
       
       if (typeof marked !== "undefined") {
-        artifactMarkdownView.innerHTML = marked.parse(artifact.content);
+        const rawHtml = marked.parse(artifact.content);
+        artifactMarkdownView.innerHTML = (typeof DOMPurify !== "undefined") ? DOMPurify.sanitize(rawHtml) : rawHtml;
       } else {
         artifactMarkdownView.innerText = artifact.content;
       }

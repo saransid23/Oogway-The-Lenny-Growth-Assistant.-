@@ -30,7 +30,9 @@ async def trigger_ship30_skill(request: SkillShip30Request, db: Session = Depend
     # 3. Generate essay
     essay_text, citations = await ship30_skill.generate_essay(
         topic=request.topic,
-        target_audience=request.target_audience or "Product Managers & Growth Leaders"
+        target_audience=request.target_audience or "Product Managers & Growth Leaders",
+        provider=request.provider,
+        model_name=request.model_name
     )
 
     # 4. Create artifact
@@ -80,7 +82,8 @@ async def trigger_ship30_skill(request: SkillShip30Request, db: Session = Depend
         message_id=asst_msg.id,
         reply=essay_text,
         provider=request.provider or "local",
-        model_name="ship30-skill",
+        model_name=request.model_name or "ship30-skill",
         citations=citations,
-        artifact=artifact_obj
+        artifact=artifact_obj,
+        evidence_found=len(citations) > 0
     )

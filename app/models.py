@@ -35,6 +35,7 @@ class ChatResponse(BaseModel):
     model_name: str
     citations: List[Citation] = []
     artifact: Optional[ArtifactResponse] = None
+    evidence_found: bool = True
 
 class SessionCreate(BaseModel):
     title: Optional[str] = "New Growth Conversation"
@@ -65,11 +66,13 @@ class SkillShip30Request(BaseModel):
     topic: str
     target_audience: Optional[str] = "Product Managers & Growth Leaders"
     provider: Optional[str] = None
+    model_name: Optional[str] = None
 
 class HealthResponse(BaseModel):
     status: str
     version: str
     active_provider: str
+    database_status: str = "connected"
     ollama_status: str
     cloud_status: str
     transcripts_loaded: int

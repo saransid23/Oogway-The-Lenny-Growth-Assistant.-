@@ -21,13 +21,17 @@ class OllamaClient:
         payload = {
             "model": target_model,
             "prompt": prompt,
-            "stream": False
+            "stream": False,
+            "options": {
+                "num_predict": 400,
+                "temperature": 0.2
+            }
         }
         if system_prompt:
             payload["system"] = system_prompt
 
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            async with httpx.AsyncClient(timeout=90.0) as client:
                 res = await client.post(url, json=payload)
                 if res.status_code == 200:
                     data = res.json()

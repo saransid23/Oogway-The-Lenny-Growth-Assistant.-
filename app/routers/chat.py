@@ -114,5 +114,6 @@ async def handle_chat(request: ChatRequest, db: Session = Depends(get_db)):
         provider=provider_used,
         model_name=model_used,
         citations=citations,
-        artifact=artifact_obj
+        artifact=artifact_obj,
+        evidence_found=execution_result.get("evidence_found", True)
     )

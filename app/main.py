@@ -1,9 +1,11 @@
 import os
+import time
+import uuid
 import logging
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from app.config import settings
 from app.database import init_db
 from app.routers import health, sessions, chat, skills, artifacts, ingest
@@ -11,7 +13,7 @@ from app.routers import health, sessions, chat, skills, artifacts, ingest
 # Configure Structured Logging
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    format="%(asctime)s [%(levelname)s] [req_id=%(name)s]: %(message)s"
 )
 logger = logging.getLogger("lenny_assistant.main")
 
@@ -31,9 +33,41 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Observability Middleware: Request-ID Tracking and Latency Logging
+@app.middleware("http")
+async def observability_middleware(request: Request, call_next):
+    req_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())[:8]
+    start_time = time.time()
+
+    # Attach request ID to request state
+    request.state.request_id = req_id
+
+    try:
+        response = await call_next(request)
+        duration_ms = round((time.time() - start_time) * 1000, 2)
+        response.headers["X-Request-ID"] = req_id
+        
+        # Don't flood logs for static asset checks
+        if not request.url.path.startswith("/static"):
+            logger.info(f"{request.method} {request.url.path} -> {response.status_code} ({duration_ms}ms) [req:{req_id}]")
+            
+        return response
+    except Exception as exc:
+        duration_ms = round((time.time() - start_time) * 1000, 2)
+        logger.error(f"Unhandled server error on {request.method} {request.url.path} ({duration_ms}ms) [req:{req_id}]: {exc}", exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status": "error",
+                "message": "An internal server error occurred while processing your request.",
+                "request_id": req_id
+            },
+            headers={"X-Request-ID": req_id}
+        )
+
 # Development No-Cache Middleware for Static Assets
 @app.middleware("http")
-async def add_no_cache_headers(request, call_next):
+async def add_no_cache_headers(request: Request, call_next):
     response = await call_next(request)
     if request.url.path.startswith("/static") or request.url.path == "/":
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
@@ -41,7 +75,7 @@ async def add_no_cache_headers(request, call_next):
         response.headers["Expires"] = "0"
     return response
 
-# Initialize Database
+# Initialize Database Schema
 init_db()
 
 # Include Routers
