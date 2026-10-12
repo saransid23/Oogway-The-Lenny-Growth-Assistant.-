@@ -18,7 +18,7 @@ class ArtifactGenerator:
     # Basic tag patterns for detecting legitimate HTML
     HTML_BLOCK_REGEX = re.compile(r"```html\s*(.*?)\s*```", re.DOTALL | re.IGNORECASE)
     MARKDOWN_BLOCK_REGEX = re.compile(r"```(?:markdown|md)\s*(.*?)\s*```", re.DOTALL | re.IGNORECASE)
-    RAW_HTML_REGEX = re.compile(r"(<!DOCTYPE html>.*?</html>|<html.*?>.*?</html>)", re.DOTALL | re.IGNORECASE)
+    RAW_HTML_REGEX = re.compile(r"(<!DOCTYPE html>.*?(?:</html>|$)|<html.*?>.*?(?:</html>|$))", re.DOTALL | re.IGNORECASE)
 
     def extract_or_create_artifact(
         self,
@@ -28,50 +28,91 @@ class ArtifactGenerator:
     ) -> Optional[Dict[str, Any]]:
         """
         Parses assistant content for codeblocks or document structures to create a sandboxed Artifact.
+        Resilient against nested markdown fences and unclosed LLM codeblocks.
         """
         if not content or len(content.strip()) == 0:
             return None
 
-        # 1. Check for explicit ```html code block
-        html_match = self.HTML_BLOCK_REGEX.search(content)
-        if html_match:
-            html_code = html_match.group(1).strip()
-            return self._build_artifact(
-                session_id=session_id,
-                title=self._format_title(title_hint, "HTML Component"),
-                artifact_type="html",
-                raw_content=html_code
-            )
+        # Normalize nested/duplicate fences often emitted by local LLMs (e.g. ```html\n```html)
+        cleaned_content = re.sub(r"```html\s*```(?:html)?", "```html", content, flags=re.IGNORECASE)
+        cleaned_content = re.sub(r"```(?:markdown|md)\s*```(?:markdown|md)?", "```markdown", cleaned_content, flags=re.IGNORECASE)
 
-        # 2. Check for raw complete HTML document in text
-        raw_html_match = self.RAW_HTML_REGEX.search(content)
+        # 1. Check for closed ```html code block with substantive content
+        for m in self.HTML_BLOCK_REGEX.finditer(cleaned_content):
+            candidate = m.group(1).strip()
+            candidate = re.sub(r"^```html\s*", "", candidate, flags=re.IGNORECASE).strip()
+            if candidate and "<" in candidate:
+                return self._build_artifact(
+                    session_id=session_id,
+                    title=self._format_title(title_hint, "HTML Component"),
+                    artifact_type="html",
+                    raw_content=candidate
+                )
+
+        # 2. Check for unclosed ```html block (when LLM generation reaches token limit)
+        unclosed_html = re.search(r"```html\s*(.*)", cleaned_content, re.DOTALL | re.IGNORECASE)
+        if unclosed_html:
+            candidate = unclosed_html.group(1).strip()
+            candidate = re.sub(r"^```html\s*", "", candidate, flags=re.IGNORECASE).strip()
+            # Strip trailing partial backticks
+            candidate = re.sub(r"```.*$", "", candidate, flags=re.DOTALL).strip()
+            if candidate and "<" in candidate:
+                return self._build_artifact(
+                    session_id=session_id,
+                    title=self._format_title(title_hint, "HTML Component"),
+                    artifact_type="html",
+                    raw_content=candidate
+                )
+
+        # 3. Check for raw HTML document in text
+        raw_html_match = self.RAW_HTML_REGEX.search(cleaned_content)
         if raw_html_match:
             raw_code = raw_html_match.group(1).strip()
-            return self._build_artifact(
-                session_id=session_id,
-                title=self._format_title(title_hint, "HTML App"),
-                artifact_type="html",
-                raw_content=raw_code
-            )
+            if raw_code and len(raw_code) > 20:
+                return self._build_artifact(
+                    session_id=session_id,
+                    title=self._format_title(title_hint, "HTML App"),
+                    artifact_type="html",
+                    raw_content=raw_code
+                )
 
-        # 3. Check for explicit ```markdown code block
-        md_match = self.MARKDOWN_BLOCK_REGEX.search(content)
+        # 4. Check for explicit ```markdown code block
+        md_match = self.MARKDOWN_BLOCK_REGEX.search(cleaned_content)
         if md_match:
             md_code = md_match.group(1).strip()
-            return self._build_artifact(
-                session_id=session_id,
-                title=self._format_title(title_hint, "Markdown Document"),
-                artifact_type="markdown",
-                raw_content=md_code
-            )
+            if md_code:
+                return self._build_artifact(
+                    session_id=session_id,
+                    title=self._format_title(title_hint, "Markdown Document"),
+                    artifact_type="markdown",
+                    raw_content=md_code
+                )
 
-        # 4. Check for comprehensive Markdown essays or structured frameworks (e.g. Ship 30 essays)
-        if (content.startswith("# ") or "### **The Hook**" in content or "Ship 30 for 30" in content) and len(content) > 800:
+        # 5. Check for unclosed ```markdown block
+        unclosed_md = re.search(r"```(?:markdown|md)\s*(.*)", cleaned_content, re.DOTALL | re.IGNORECASE)
+        if unclosed_md:
+            candidate_md = unclosed_md.group(1).strip()
+            candidate_md = re.sub(r"```.*$", "", candidate_md, flags=re.DOTALL).strip()
+            if candidate_md and len(candidate_md) > 100:
+                return self._build_artifact(
+                    session_id=session_id,
+                    title=self._format_title(title_hint, "Markdown Document"),
+                    artifact_type="markdown",
+                    raw_content=candidate_md
+                )
+
+        # 6. Check for comprehensive Markdown essays or structured frameworks (e.g. Ship 30 essays)
+        is_ship30_or_essay = (
+            (title_hint and any(kw in title_hint.lower() for kw in ["ship 30", "essay", "playbook", "framework"]))
+            or bool(re.search(r"(?i)(The Hook|The Trap|Paradigm Shift|Ship 30 for 30|1-Sentence Takeaway)", cleaned_content))
+            or (("\n# " in cleaned_content or cleaned_content.startswith("# ")) and len(cleaned_content) > 400)
+        )
+        if is_ship30_or_essay and len(cleaned_content) > 150:
             return self._build_artifact(
                 session_id=session_id,
                 title=self._format_title(title_hint, "Growth Essay"),
                 artifact_type="markdown",
-                raw_content=content
+                raw_content=cleaned_content
             )
 
         return None
@@ -92,6 +133,9 @@ class ArtifactGenerator:
         artifact_type: str,
         raw_content: str
     ) -> Optional[Dict[str, Any]]:
+        if not raw_content or not raw_content.strip():
+            return None
+
         # Validate size
         content_bytes = raw_content.encode("utf-8")
         if len(content_bytes) > MAX_ARTIFACT_SIZE_BYTES:

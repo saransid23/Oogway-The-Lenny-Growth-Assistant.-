@@ -183,9 +183,25 @@ document.addEventListener("DOMContentLoaded", () => {
         if (msgs.length === 0) {
           messagesContainer.appendChild(welcomeHero);
           welcomeHero.classList.remove("hidden");
+          activeArtifact = null;
+          if (artifactCountBadge) artifactCountBadge.classList.add("hidden");
         } else {
           welcomeHero.classList.add("hidden");
           msgs.forEach((m) => appendMessageUI(m));
+
+          // Auto-load and display the latest artifact in the session
+          const lastArtifactMsg = msgs.slice().reverse().find((m) => m.artifact);
+          if (lastArtifactMsg && lastArtifactMsg.artifact) {
+            displayArtifact(lastArtifactMsg.artifact);
+            if (artifactCountBadge) {
+              artifactCountBadge.classList.remove("hidden");
+              artifactCountBadge.innerText = "1";
+            }
+          } else {
+            activeArtifact = null;
+            if (artifactCountBadge) artifactCountBadge.classList.add("hidden");
+          }
+
           scrollToBottom();
         }
       }
@@ -291,6 +307,9 @@ document.addEventListener("DOMContentLoaded", () => {
         content: ""
       });
       const liveContentEl = liveRow.querySelector(".msg-content");
+      if (liveContentEl) {
+        liveContentEl.innerHTML = '<span style="color: var(--text-tertiary);"><i class="fa-solid fa-spinner fa-spin" style="margin-right:6px;"></i> Grounding answer & artifacts from transcripts...</span>';
+      }
       let accumulatedText = "";
       let rafId = null;
 
@@ -562,6 +581,10 @@ document.addEventListener("DOMContentLoaded", () => {
     artifactCodeBlock.textContent = artifact.content;
     switchArtifactTab("render");
     artifactPane.classList.remove("collapsed");
+    if (artifactCountBadge) {
+      artifactCountBadge.classList.remove("hidden");
+      artifactCountBadge.innerText = "1";
+    }
   }
 
   function switchArtifactTab(tab) {
@@ -679,6 +702,11 @@ document.addEventListener("DOMContentLoaded", () => {
     btnToggleArtifact.addEventListener("click", () => {
       if (artifactPane.classList.contains("collapsed")) {
         if (!activeArtifact) {
+          const cards = document.querySelectorAll(".artifact-embedded-card");
+          if (cards.length > 0) {
+            cards[cards.length - 1].click();
+            return;
+          }
           displayArtifact({
             id: "default-dashboard",
             session_id: currentSessionId || "default",
@@ -686,6 +714,8 @@ document.addEventListener("DOMContentLoaded", () => {
             artifact_type: "html",
             content: getDefaultDemoDashboard()
           });
+        } else {
+          displayArtifact(activeArtifact);
         }
         artifactPane.classList.remove("collapsed");
       } else {
