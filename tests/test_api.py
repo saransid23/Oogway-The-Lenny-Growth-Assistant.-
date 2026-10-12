@@ -68,3 +68,11 @@ def test_ingest_status_endpoint():
     assert data["status"] == "active"
     assert data["total_chunks"] > 0
 
+def test_anthropic_claude_agent():
+    from app.llm.anthropic_agent import claude_agent, CLAUDE_AGENT_TOOLS
+    assert claude_agent is not None
+    assert len(CLAUDE_AGENT_TOOLS) >= 2
+    tool_names = [t["name"] for t in CLAUDE_AGENT_TOOLS]
+    assert "search_transcripts" in tool_names
+    assert "generate_ship30_essay" in tool_names
+

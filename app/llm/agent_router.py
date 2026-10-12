@@ -6,6 +6,9 @@ from app.skills.artifact_generator import artifact_generator
 from app.models import Citation, ArtifactResponse
 from app.rag.retriever import retriever
 
+from app.llm.anthropic_agent import claude_agent
+from app.config import settings
+
 logger = logging.getLogger("lenny_assistant.agent_router")
 
 class AgentRouter:
@@ -36,7 +39,7 @@ class AgentRouter:
         provider_used = requested_provider or "local"
         model_used = model_name or "mistral"
 
-        # 2. Skill Dispatch
+        # 2. Skill & Agent Dispatch
         if is_ship30:
             logger.info("Routing to Ship 30 for 30 Content Skill")
             reply_text, citations = await ship30_skill.generate_essay(topic=user_message)
@@ -47,6 +50,21 @@ class AgentRouter:
             reply_text = self._generate_html_dashboard_artifact(user_message)
             _, citations = retriever.search(user_message, top_k=2)
 
+        elif requested_provider == "cloud" and claude_agent.is_available():
+            logger.info("Routing to Anthropic Claude Agent SDK execution layer")
+            agent_res = await claude_agent.run_agent(user_message, chat_history=chat_history)
+            if agent_res:
+                reply_text, citations = agent_res
+                provider_used = "cloud"
+                model_used = settings.ANTHROPIC_MODEL
+            else:
+                reply_text, provider_used, model_used, citations = await llm_provider.generate_response(
+                    query=user_message,
+                    chat_history=chat_history,
+                    requested_provider=requested_provider,
+                    model_name=model_name
+                )
+
         else:
             logger.info("Routing to Grounded RAG Assistant Conversation Engine")
             reply_text, provider_used, model_used, citations = await llm_provider.generate_response(
@@ -55,6 +73,7 @@ class AgentRouter:
                 requested_provider=requested_provider,
                 model_name=model_name
             )
+
 
         # 3. Artifact Extraction
         artifact_dict = artifact_generator.extract_or_create_artifact(

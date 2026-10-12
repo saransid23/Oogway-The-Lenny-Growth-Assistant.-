@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db, SessionModel, MessageModel, ArtifactModel
 from app.models import ChatRequest, ChatResponse, ArtifactResponse
+from app.llm.agent_router import agent_router
 from app.llm.provider import llm_provider
 from app.skills.artifact_generator import artifact_generator
 from app.skills.ship30 import ship30_skill
@@ -49,26 +50,22 @@ async def handle_chat(request: ChatRequest, db: Session = Depends(get_db)):
     past_messages = db.query(MessageModel).filter(MessageModel.session_id == session_id).order_by(MessageModel.created_at.asc()).all()
     history = [{"role": m.sender, "content": m.content} for m in past_messages[:-1]]
 
-    # 4. Check if Ship 30 for 30 Skill requested or triggered
-    citations = []
-    if request.use_skill == "ship30" or "ship 30" in request.message.lower() or "essay" in request.message.lower():
-        reply_text, citations = await ship30_skill.generate_essay(topic=request.message)
-        provider_used = request.provider or "local"
-        model_used = request.model_name or "mistral"
-    else:
-        reply_text, provider_used, model_used, citations = await llm_provider.generate_response(
-            query=request.message,
-            chat_history=history,
-            requested_provider=request.provider,
-            model_name=request.model_name
-        )
-
-    # 5. Extract or create artifact if present
-    artifact_dict = artifact_generator.extract_or_create_artifact(
+    # 4. Route and execute through the Agent Router Layer (Anthropic Agent SDK, Ship 30, or Grounded RAG)
+    execution_result = await agent_router.route_and_execute(
         session_id=session_id,
-        content=reply_text,
-        title_hint=request.message[:30]
+        user_message=request.message,
+        chat_history=history,
+        requested_provider=request.provider,
+        requested_skill=request.use_skill,
+        model_name=request.model_name
     )
+
+    reply_text = execution_result["reply"]
+    provider_used = execution_result["provider"]
+    model_used = execution_result["model_name"]
+    citations = execution_result["citations"]
+    artifact_dict = execution_result["artifact_dict"]
+
 
     artifact_obj = None
     artifact_id = None

@@ -30,10 +30,12 @@ c:\oogway project\
 │   ├── rag\                 # Grounded Retrieval Pipeline
 │   │   ├── knowledge_base.py# Transcript loader & chunker
 │   │   └── retriever.py     # TF-IDF keyword search & citation generator
-│   ├── llm\                 # Flexible LLM Adapter Layer
+│   ├── llm\                 # Flexible LLM & Agent Adapter Layer
+│   │   ├── agent_router.py  # Intent classifier & agent routing layer
+│   │   ├── anthropic_agent.py# Anthropic Claude Agent SDK integration (tool-calling loop)
 │   │   ├── provider.py      # Unified LLM orchestrator & fallback
 │   │   ├── ollama_client.py # Local Ollama client
-│   │   └── cloud_client.py  # OpenAI / Anthropic cloud client
+│   │   └── cloud_client.py  # OpenAI / Anthropic AsyncAnthropic cloud client
 │   ├── skills\              # AI Skills & Artifact Generators
 │   │   ├── ship30.py        # Ship 30 for 30 essay generator
 │   │   └── artifact_generator.py # HTML/Markdown artifact extractor

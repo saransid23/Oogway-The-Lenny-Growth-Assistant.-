@@ -108,27 +108,36 @@
 
 ```mermaid
 flowchart TD
-    UserQuery[User Chat / Skill Request] --> Router[API Router Layer]
-    Router --> KBRetriever[TranscriptRetriever TF-IDF]
-    KBRetriever --> RAGContext[Grounded Transcripts & Citations]
+    UserQuery[User Chat / Skill Request] --> Router[API Router Layer: AgentRouter]
+    Router --> ModelToggle{Active Provider Setting}
     
-    RAGContext --> ModelToggle{Active Provider Setting}
+    ModelToggle -->|Provider == 'cloud' & Anthropic SDK| ClaudeAgent[Anthropic Claude Agent SDK: claude-3-5-sonnet]
+    ClaudeAgent -->|Tool Call: search_transcripts| KBRetriever[TranscriptRetriever TF-IDF]
+    ClaudeAgent -->|Tool Call: generate_ship30_essay| Ship30Skill[Ship 30 Skill Engine]
     
     ModelToggle -->|Provider == 'local'| OllamaCheck{Ollama Accessible?}
     OllamaCheck -->|Yes| OllamaExec[Ollama Local Client: mistral/llama3]
     OllamaCheck -->|No / Offline| Fallback1[Deterministic RAG Fallback Synthesizer]
     
-    ModelToggle -->|Provider == 'cloud'| CloudCheck{API Key Configured?}
-    CloudCheck -->|Yes| CloudExec[OpenAI gpt-4o-mini / Anthropic Sonnet]
-    CloudCheck -->|No / Key Missing| Fallback2[Deterministic RAG Fallback Synthesizer]
+    ModelToggle -->|Provider == 'cloud' fallback| CloudExec[OpenAI gpt-4o-mini / Anthropic HTTP]
     
     OllamaExec --> ArtifactExtractor[Artifact Extractor & Sanitizer]
+    ClaudeAgent --> ArtifactExtractor
     CloudExec --> ArtifactExtractor
     Fallback1 --> ArtifactExtractor
-    Fallback2 --> ArtifactExtractor
     
     ArtifactExtractor --> Response[Response JSON + Sandboxed HTML/Markdown Artifact]
 ```
+
+### 6.1 Anthropic Claude Agent SDK Tool Loop
+When cloud execution is active with `ANTHROPIC_API_KEY`:
+1. `AnthropicClaudeAgent` (`app/llm/anthropic_agent.py`) initializes `anthropic.AsyncAnthropic`.
+2. Registers autonomous tools:
+   - `search_transcripts`: Queries Lenny's Podcast knowledge base and returns formatted excerpts and timestamps.
+   - `generate_ship30_essay`: Dispatches topic to the Ship 30 for 30 structured essay synthesizer.
+3. Executes a multi-turn tool-calling loop (`messages.create` with `tools=CLAUDE_AGENT_TOOLS`, processing `tool_use` blocks and returning grounded responses).
+4. If the cloud key is unset, seamlessly routes to Ollama local model or the deterministic embedded synthesizer.
+
 
 ---
 
